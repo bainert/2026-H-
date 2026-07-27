@@ -4,7 +4,7 @@
 #include "ti_msp_dl_config.h"
 
 extern volatile int enter;
-extern volatile int circle_1;
+extern volatile int question;
 extern volatile uint32_t counter_1_A;
 extern volatile uint32_t counter_2_A;
 extern volatile uint8_t key_debounce_cnt;

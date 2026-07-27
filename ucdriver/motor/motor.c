@@ -162,7 +162,7 @@ void motor_pid_INST_IRQHandler(void)
    switch(DL_Timer_getPendingInterrupt(motor_pid_INST))
    {
     case DL_TIMER_IIDX_LOAD:
-        //第一问发车
+        //发车
         if(enter == 1)
         {
             //灰度控制

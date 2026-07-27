@@ -33,7 +33,7 @@ void adjust_motor()
     float error = 0.0f;
     uint8_t sum = 0;
     static uint8_t lost_count = 0;
-    static uint8_t was_lost = 0;        //直角弯过渡标志：丢线→恢复时计数一次
+    static uint8_t was_lost = 0;        //丢线标志：丢线→恢复时计数一次
 
     // 权重数组: L2=-2, L1=-1, M=0, R1=+1, R2=+2
     const int8_t weights[5] = {-2, -1, 0, 1, 2};
@@ -61,27 +61,13 @@ void adjust_motor()
     }
     else if(sum == 0)
     {
-        // 丢线
+        // 丢线(逻辑待实现)
         lost_count++;
         if(lost_count >= 10)
         {
-            // 连续丢线 >= 300ms → 直角转弯，进入急转模式
-            was_lost = 1;                 //标记直角转弯，待恢复循迹时计数
-            if(last_error > 0.0f)
-            {
-                target_speed_1 = 300.0f;
-                target_speed_2 = 0.0f;
-            }
-            else if(last_error < 0.0f)
-            {
-                target_speed_1 = 0.0f;
-                target_speed_2 = 300.0f;
-            }
-            else
-            {
-                target_speed_1 = huidu_base_speed;
-                target_speed_2 = huidu_base_speed;
-            }
+            // 连续丢线 >= 300ms → 进入丢线处理
+            was_lost = 1;                 //标记丢线，恢复循迹时计数
+           
 
             return;  // 跳过比例计算和钳位
         }

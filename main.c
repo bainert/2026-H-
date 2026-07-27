@@ -40,8 +40,8 @@
 //是否发车 0-未发车 1-发车
 extern volatile int enter;
 
-//第一问圈数
-extern volatile int circle_1;
+//题号
+extern volatile int question;
 
 //直角弯计数变量
 extern volatile uint8_t huidu_straight_count;
@@ -49,6 +49,14 @@ extern volatile uint8_t huidu_straight_count;
 //实时速度
 extern volatile float speed_1;
 extern volatile float speed_2;
+
+// 外部声明 mpu_port.c 里的时间戳变量
+extern volatile uint32_t sys_tick_ms;
+
+// SysTick 中断服务函数 (每 1ms 触发一次)
+void SysTick_Handler(void) {
+    sys_tick_ms++;
+}
 
 //oled显示
 void oled_proc(void)
@@ -60,18 +68,10 @@ void oled_proc(void)
     else
         OLED_ShowString(42, 0, (u8 *)"STOP", 12);
 
-    //第二行：圈数
-    OLED_ShowString(0,12,(u8 *)"circle_1: ", 12);
-    OLED_ShowNum(54, 12, circle_1, 2, 12);
-
-    //第三行：速度显示
-    OLED_ShowString(0, 24, (u8 *)"Speed_1: ", 12);
-    OLED_ShowFloat(48, 24, speed_1, 3, 3, 12);
-    OLED_ShowString(0, 36, (u8 *)"Speed_2: ", 12);
-    OLED_ShowFloat(48, 36, speed_2, 3, 3, 12);
-
-    //判断是否到指定圈数
-    if((circle_1 * 4) == huidu_straight_count) enter = 0;
+    //第二行：题号
+    OLED_ShowString(0,12,(u8 *)"question: ", 12);
+    OLED_ShowNum(54, 12, question, 2, 12);
+        
 
     //刷新显示
     OLED_Refresh();

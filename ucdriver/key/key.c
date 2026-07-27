@@ -3,8 +3,8 @@
 
 //是否发车 0-未发车 1-发车
 volatile int enter = 0;
-//圈数
-volatile int circle_1 = 0;
+//题号
+volatile int question = 0;
 
 //AA编码器计数变量
 volatile uint32_t counter_1_A = 0;
@@ -37,8 +37,8 @@ void GROUP1_IRQHandler(void)
 
         if(key_int == key_next_IIDX)
         {
-            circle_1 += 1;
-            if(circle_1 > 5) circle_1 = 1;
+            question += 1;
+            if(question > 5) question = 1;
         }
         else if(key_int == key_enter_IIDX)
         {
