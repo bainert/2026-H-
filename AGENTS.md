@@ -54,7 +54,7 @@ main.c  使用: enter, question, speed_1, speed_2, huidu_straight_count
 
 `SYSCFG_DL_init()` → OLED/UART 初始化 → 使能中断 (UART, GPIOB, GPIOA) → `motor_init(1)` / `motor_init(2)` → `motor_set_direction()` → `while(1) { oled_proc() }`
 
-- `oled_proc()` 显示发车状态、题号
+- `oled_proc()` 显示发车状态、题号、数据
 
 ## 代码约定
 
@@ -71,3 +71,10 @@ main.c  使用: enter, question, speed_1, speed_2, huidu_straight_count
 - **ADC12**: 已在 syscfg 配置（PA16, VREF 2.5V），但代码中未使用
 - **MPU6050**: 驱动已编译 (`ucdriver/mpu6050/`)，但 `main.c` 未初始化或使用
 - **SysTick 1ms 全局 tick**: `sys_tick_ms` 在 `main.c` 声明为 extern，但当前仅 `SysTick_Handler` 递增，无引用方
+
+## 图片识别 (Vision)
+
+当前模型不支持原生图片输入。需要分析图片时，通过 PowerShell 调用 opencode Zen API 的 `mimo-v2.5-free` 多模态模型：
+- API: `https://opencode.ai/zen/v1/chat/completions`（无需 API Key）
+- 方法：图片转 base64，构造 OpenAI 多模态消息 POST 上去
+- 详细步骤见 skill: `using-vision-api`（`~/.config/opencode/skills/using-vision-api/SKILL.md`）
