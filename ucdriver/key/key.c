@@ -13,6 +13,11 @@ volatile uint32_t counter_2_A = 0;
 //按键消抖计数器：key ISR置2，30ms PID定时器ISR递减，2×30ms=60ms消抖
 volatile uint8_t key_debounce_cnt = 0;
 
+// 第二问：跑圈状态
+volatile lap_state_t lap_state = LAP_IDLE;
+volatile uint32_t lap_start_ms = 0;
+volatile uint32_t lap_total_ms = 0;
+
 uint8_t get_key_state(uint32_t key_state)
 {
     uint32_t state = DL_GPIO_readPins(key_PORT, key_state);
