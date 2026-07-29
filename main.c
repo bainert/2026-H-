@@ -50,6 +50,9 @@ extern volatile uint8_t huidu_straight_count;
 extern volatile float speed_1;
 extern volatile float speed_2;
 
+//里程计
+extern volatile float odometer;
+
 // 外部声明 mpu_port.c 里的时间戳变量
 extern volatile uint32_t sys_tick_ms;
 
@@ -77,31 +80,36 @@ void oled_proc(void)
     OLED_ShowString(0,12,(u8 *)"question: ", 12);
     OLED_ShowNum(54, 12, question, 2, 12);
 
-    /* 第二问: 跑圈计时显示 */
+    //第三行：里程计
+    OLED_ShowString(0, 24, (u8 *)"D:", 12);
+    OLED_ShowFloat(12, 24, odometer / 1000.0f, 1, 2, 12);
+    OLED_ShowString(34, 24, (u8 *)"m", 12);
+
+    //第四行：跑圈计时（Q2）
     if(question == 2)
     {
         if(lap_state == LAP_RUNNING)
         {
             uint32_t elapsed = sys_tick_ms - lap_start_ms;
-            OLED_ShowString(0, 24, (u8 *)"T:", 12);
-            OLED_ShowFloat(12, 24, (float)elapsed / 1000.0f, 2, 2, 12);
-            OLED_ShowString(36, 24, (u8 *)"s", 12);
+            OLED_ShowString(0, 36, (u8 *)"T:", 12);
+            OLED_ShowFloat(12, 36, (float)elapsed / 1000.0f, 2, 2, 12);
+            OLED_ShowString(36, 36, (u8 *)"s", 12);
         }
         else if(lap_state == LAP_COMPLETE)
         {
-            OLED_ShowString(0, 24, (u8 *)"F:", 12);
-            OLED_ShowFloat(12, 24, (float)lap_total_ms / 1000.0f, 2, 2, 12);
-            OLED_ShowString(36, 24, (u8 *)"s!", 12);
+            OLED_ShowString(0, 36, (u8 *)"F:", 12);
+            OLED_ShowFloat(12, 36, (float)lap_total_ms / 1000.0f, 2, 2, 12);
+            OLED_ShowString(36, 36, (u8 *)"s!   ", 12);
         }
         else  // LAP_IDLE
         {
-            OLED_ShowString(0, 24, (u8 *)"Press ENTER", 12);
+            OLED_ShowString(0, 36, (u8 *)"Press ENTER", 12);
         }
     }
     else
     {
-        // 非Q2时清除第三行，防止残留文字
-        OLED_ShowString(0, 24, (u8 *)"            ", 12);
+        // 非Q2时清除第四行
+        OLED_ShowString(0, 36, (u8 *)"            ", 12);
     }
 
     //刷新显示

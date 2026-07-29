@@ -1,7 +1,7 @@
 #include "huidu.h"
 #include "key.h"
 
-uint8_t huidu_value[] = {0, 0, 0, 0, 0};
+volatile uint8_t huidu_value[] = {0, 0, 0, 0, 0};
 //直角弯计数变量
 volatile uint8_t huidu_straight_count = 0;
 

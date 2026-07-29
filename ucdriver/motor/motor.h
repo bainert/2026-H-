@@ -5,7 +5,7 @@
 
 #define PI 3.14
 //编码器线数
-#define motor_xianshu 220
+#define motor_xianshu 260
 //轮胎直径 mm
 #define motor_wheel_d 47
 
@@ -17,6 +17,7 @@ extern volatile float speed_1;
 extern volatile float speed_2;
 extern volatile float target_speed_1;
 extern volatile float target_speed_2;
+extern volatile float odometer;
 
 #endif
 

@@ -1,6 +1,7 @@
 #include "motor.h"
 #include "ti_msp_dl_config.h"
 #include "huidu.h"
+#include "key.h"
 
 //30ms定时器计数变量
 extern volatile uint32_t counter_1_A;
@@ -29,6 +30,9 @@ int PWM_2_duty = 0;
 //目标速度
 volatile float target_speed_1 = 0.0f; //单位：mm/s
 volatile float target_speed_2 = 0.0f; //单位：mm/s
+
+//里程计（累计行驶距离，单位 mm）
+volatile float odometer = 0.0f;
 
 //上一次误差，当前误差
 float last_error_1 = 0.0f;
@@ -161,7 +165,7 @@ void motor_PID(uint8_t motor_id)
     }
 }
 
-//30ms定时器中断服务函数
+//10ms定时器中断服务函数
 void motor_pid_INST_IRQHandler(void)
 {
     //按键消抖计数器递减（60ms消抖窗口）
@@ -174,6 +178,9 @@ void motor_pid_INST_IRQHandler(void)
         {
             //灰度控制
             adjust_motor();
+            //里程累计（使用编码器计数值，精度更高）
+            odometer += ((float)counter_1_A + (float)counter_2_A) * 0.5f
+                        / motor_xianshu * PI * motor_wheel_d;
             //计算电机速度
             calculate_speed(1);
             calculate_speed(2);
@@ -186,23 +193,19 @@ void motor_pid_INST_IRQHandler(void)
             {
                 if(lap_state == LAP_IDLE || lap_state == LAP_COMPLETE)
                 {
-                    // 从待命或完成状态 -> 开始跑圈
+                    // 从待命或完成状态 -> 开始跑圈，里程清零
+                    odometer = 0.0f;
                     lap_state = LAP_RUNNING;
                     lap_start_ms = sys_tick_ms;
                 }
                 else if(lap_state == LAP_RUNNING)
                 {
-                    // 起步后延迟2s开始检测A点，避免出发位置误判
-                    if(sys_tick_ms - lap_start_ms > 2000)
+                    /* 里程计到达5.20m时停车 */
+                    if(odometer >= 5000.0f)
                     {
-                        /* A点特征: L1+M+R1同时检测到黑线, L2+R2丢线 */
-                        if(huidu_value[1] && huidu_value[2] && huidu_value[3]
-                            && !huidu_value[0] && !huidu_value[4])
-                        {
-                            lap_state = LAP_COMPLETE;
-                            lap_total_ms = sys_tick_ms - lap_start_ms;
-                            enter = 0;  // 停止电机
-                        }
+                        lap_state = LAP_COMPLETE;
+                        lap_total_ms = sys_tick_ms - lap_start_ms;
+                        enter = 0;  // 停止电机
                     }
                 }
             }
