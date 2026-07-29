@@ -16,7 +16,7 @@
 // R2       GPIOA.2
 
 extern volatile uint8_t huidu_straight_count;
-extern uint8_t huidu_value[5];
+extern volatile uint8_t huidu_value[5];
 
 void huidu_get_value();
 void adjust_motor();

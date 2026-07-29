@@ -206,6 +206,11 @@ void motor_pid_INST_IRQHandler(void)
                     }
                 }
             }
+            else
+            {
+                // 非Q2题号时重置圈状态，防止切换题号回来时状态混乱
+                lap_state = LAP_IDLE;
+            }
         }
         //未发车时（包括Q2完成后的状态），电机停止
         if(enter == 0)

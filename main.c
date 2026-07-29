@@ -98,6 +98,11 @@ void oled_proc(void)
             OLED_ShowString(0, 24, (u8 *)"Press ENTER", 12);
         }
     }
+    else
+    {
+        // 非Q2时清除第三行，防止残留文字
+        OLED_ShowString(0, 24, (u8 *)"            ", 12);
+    }
 
     //刷新显示
     OLED_Refresh();
