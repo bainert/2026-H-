@@ -29,15 +29,15 @@ IDE: TI Code Composer Studio 20.5.0 (Theia)。**无法脱离 CCS 构建** — `D
 | **AA 编码器** (电机1, 左轮) | `ucdriver/key/` | PA21 (AA 上升沿), PA22 (AB)。`counter_1_A` 在 `GROUP1_IRQHandler` 递增，30ms PID 定时器读取并清零 |
 | **BA 编码器** (电机2, 右轮) | `ucdriver/key/` | PB19 (BA 上升沿), PB20 (BB)。`counter_2_A` 在 `GROUP1_IRQHandler` 递增 |
 | **Delay** | `ucdriver/delay/` | `delay_ms(ms)` = `delay_cycles(ms * CPUCLK_FREQ / 1000)` |
-| **直流电机** (TB6612) | `ucdriver/motor/` | STBY=PB24, AIN1=PA9, AIN2=PA8, BIN1=PB18, BIN2=PA7。PWM: TIMG7 CCP1=PA27(电机1), TIMG0 CCP1=PA13(电机2)。30ms 定时器 TIMA0 → `motor_pid_INST_IRQHandler` 调用 `calculate_speed()` + `motor_PID()`。增量式 PI (Kp=0.6, Ki=1.9)。API: `motor_init(id)`, `motor_set_duty(id, 0-4000)`, `motor_set_direction(id, 0/1)` |
+| **直流电机** (TB6612) | `ucdriver/motor/` | STBY=PB24, AIN1=PA9, AIN2=PA8, BIN1=PB18, BIN2=PA7。PWM: TIMG7 CCP1=PA27(电机1), TIMG0 CCP1=PA13(电机2)。10ms 定时器 TIMA0 → `motor_pid_INST_IRQHandler` 调用 `calculate_speed()` + `motor_PID()`。增量式 PI (Kp=0.6, Ki=1.9)。API: `motor_init(id)`, `motor_set_duty(id, 0-4000)`, `motor_set_direction(id, 0/1)` |
 | **灰度循迹** (×5) | `ucdriver/huidu/` | L2=PA17, L1=PB8, M=PB9, R1=PA24, R2=PA2。`adjust_motor()` 比例控制（权重 -2,-1,0,+1,+2，Kp=40），丢线 ≥300ms 标记 `was_lost`，恢复时 `huidu_straight_count` 自增 |
 | **MPU6050** (六轴) | `ucdriver/mpu6050/` | I2C0 (PA0=SDA, PA1=SCL)。DMP 驱动库 (`inv_mpu_dmp_motion_driver`)。目前已编译但 `main.c` 未引用 |
 
 ## 关键常量 (`motor.h`)
 
 - `PI = 3.14`（非 `M_PI`，不要替换）
-- 编码器线数 220 线/转，车轮直径 47mm
-- 速度公式: `counter / 220 * PI * 47 / 0.03` (mm/s)
+- 编码器线数 260 线/转，车轮直径 47mm
+- 速度公式: `counter / 260 * PI * 47 / 0.03` (mm/s)
 
 ## 模块间数据流
 
