@@ -12,6 +12,13 @@ extern volatile int enter;
 //按键消抖计数器
 extern volatile uint8_t key_debounce_cnt;
 
+/* 第二问 lap 状态机 */
+extern volatile int question;
+extern volatile lap_state_t lap_state;
+extern volatile uint32_t lap_start_ms;
+extern volatile uint32_t lap_total_ms;
+extern volatile uint32_t sys_tick_ms;
+
 volatile float speed_1 = 0.0f;
 volatile float speed_2 = 0.0f;
 
@@ -173,9 +180,34 @@ void motor_pid_INST_IRQHandler(void)
             //pid控制
             motor_PID(1);
             motor_PID(2);
-            break;
+
+            /* 第二问: 跑圈计时 + 自动停止 */
+            if(question == 2)
+            {
+                if(lap_state == LAP_IDLE || lap_state == LAP_COMPLETE)
+                {
+                    // 从待命或完成状态 -> 开始跑圈
+                    lap_state = LAP_RUNNING;
+                    lap_start_ms = sys_tick_ms;
+                }
+                else if(lap_state == LAP_RUNNING)
+                {
+                    // 起步后延迟2s开始检测A点，避免出发位置误判
+                    if(sys_tick_ms - lap_start_ms > 2000)
+                    {
+                        /* A点特征: L1+M+R1同时检测到黑线, L2+R2丢线 */
+                        if(huidu_value[1] && huidu_value[2] && huidu_value[3]
+                            && !huidu_value[0] && !huidu_value[4])
+                        {
+                            lap_state = LAP_COMPLETE;
+                            lap_total_ms = sys_tick_ms - lap_start_ms;
+                            enter = 0;  // 停止电机
+                        }
+                    }
+                }
+            }
         }
-        //未发车时，电机停止
+        //未发车时（包括Q2完成后的状态），电机停止
         if(enter == 0)
         {
             motor_set_duty(1, 0);
