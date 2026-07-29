@@ -53,6 +53,11 @@ extern volatile float speed_2;
 // 外部声明 mpu_port.c 里的时间戳变量
 extern volatile uint32_t sys_tick_ms;
 
+// 第二问: 跑圈状态
+extern volatile lap_state_t lap_state;
+extern volatile uint32_t lap_start_ms;
+extern volatile uint32_t lap_total_ms;
+
 // SysTick 中断服务函数 (每 1ms 触发一次)
 void SysTick_Handler(void) {
     sys_tick_ms++;
@@ -71,7 +76,28 @@ void oled_proc(void)
     //第二行：题号
     OLED_ShowString(0,12,(u8 *)"question: ", 12);
     OLED_ShowNum(54, 12, question, 2, 12);
-        
+
+    /* 第二问: 跑圈计时显示 */
+    if(question == 2)
+    {
+        if(lap_state == LAP_RUNNING)
+        {
+            uint32_t elapsed = sys_tick_ms - lap_start_ms;
+            OLED_ShowString(0, 24, (u8 *)"T:", 12);
+            OLED_ShowFloat(12, 24, (float)elapsed / 1000.0f, 2, 2, 12);
+            OLED_ShowString(36, 24, (u8 *)"s", 12);
+        }
+        else if(lap_state == LAP_COMPLETE)
+        {
+            OLED_ShowString(0, 24, (u8 *)"F:", 12);
+            OLED_ShowFloat(12, 24, (float)lap_total_ms / 1000.0f, 2, 2, 12);
+            OLED_ShowString(36, 24, (u8 *)"s!", 12);
+        }
+        else  // LAP_IDLE
+        {
+            OLED_ShowString(0, 24, (u8 *)"Press ENTER", 12);
+        }
+    }
 
     //刷新显示
     OLED_Refresh();
