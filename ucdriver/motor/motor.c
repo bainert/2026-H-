@@ -177,11 +177,13 @@ void motor_pid_INST_IRQHandler(void)
         //发车
         if(enter == 1)
         {
-            if(question == 3)
+            if(question == 3 || question == 5)
             {
-                //Q3 静态摆球：小车电机停，不循迹，交给摆球控制
+                //Q3 静态摆球 / Q5 测试：小车电机停，不循迹，交给摆球控制
                 motor_set_duty(1, 0);
                 motor_set_duty(2, 0);
+                target_speed_1 = 0.0f;
+                target_speed_2 = 0.0f;
             }
             else
             {
@@ -209,8 +211,8 @@ void motor_pid_INST_IRQHandler(void)
                     }
                     else if(lap_state == LAP_RUNNING)
                     {
-                        /* 里程计到达5.20m时停车 */
-                        if(odometer >= 5000.0f)
+                        /* 里程计到达6.50m时停车 */
+                        if(odometer >= 6500.0f)
                         {
                             lap_state = LAP_COMPLETE;
                             lap_total_ms = sys_tick_ms - lap_start_ms;
@@ -230,6 +232,8 @@ void motor_pid_INST_IRQHandler(void)
         {
             motor_set_duty(1, 0);
             motor_set_duty(2, 0);
+            target_speed_1 = 0.0f;
+            target_speed_2 = 0.0f;
         }
 
         //摆球控制 10ms 周期调用（Q3 时生效，非 Q3 自动待命）

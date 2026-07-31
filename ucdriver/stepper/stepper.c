@@ -6,9 +6,10 @@
 #define STEPPER_ADDR        0x01
 //校验码（出厂默认0x6B）
 #define STEPPER_CRC         0x6B
+#define STEPPER_DIRECTION_REVERSE  1  // 逻辑正方向定义为车头，适配当前电机安装方向
 
 //位置模式运动参数（可调）
-#define STEPPER_SPEED_RPM   30     //速度 0-3000 RPM
+#define STEPPER_SPEED_RPM   45     //速度 0-3000 RPM
 #define STEPPER_ACC         0     //加速度档位 0-255，越大加速越快
 //最近一次电机应答字节
 volatile uint8_t stepper_ack = 0;
@@ -47,12 +48,12 @@ void stepper_move(int32_t pulses)
     //正负脉冲拆分：正=CW(00) 负=CCW(01)，脉冲数取绝对值
     if(pulses >= 0)
     {
-        dir = 0x00;
+        dir = STEPPER_DIRECTION_REVERSE ? 0x01 : 0x00;
         abs_pulses = (uint32_t)pulses;
     }
     else
     {
-        dir = 0x01;
+        dir = STEPPER_DIRECTION_REVERSE ? 0x00 : 0x01;
         abs_pulses = (uint32_t)(-pulses);
     }
 

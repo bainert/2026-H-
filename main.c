@@ -90,7 +90,7 @@ void oled_proc(void)
     OLED_ShowNum(54, 12, question, 2, 12);
 
     //第三行：Q3 显示小球位置，否则里程计
-    if(question == 3)
+    if(question == 3 || question == 4 || question == 5)
     {
         OLED_ShowString(0, 24, (u8 *)"P:", 12);
         if(ball_frame_lost)
@@ -127,7 +127,7 @@ void oled_proc(void)
             OLED_ShowString(0, 36, (u8 *)"Press ENTER", 12);
         }
     }
-    else if(question == 3)
+    else if(question == 3 || question == 4 || question == 5)
     {
         OLED_ShowString(0, 36, (u8 *)"BAL:", 12);
         if(ball_running)
