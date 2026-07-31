@@ -18,10 +18,9 @@
 //  KP：球偏 1mm → 摆杆倾斜 KP 脉冲（1.5 脉冲≈0.17°，50mm 偏差≈8.4°→加速度 1.4m/s²）
 //  KI：修摩擦静差（小即可，过大引起低频振荡）
 //  KD：阻尼，抑制过冲振荡（对 1mm 量化敏感，若高速抖动就调小）
-// 注意：以下为 10ms 周期下的值（由原 30ms 周期重定标：KI÷3、KD×3，KP不变）
-#define BALL_KP             0.5f
-#define BALL_KI             0.02f
-#define BALL_KD             12.0f
+#define BALL_KP             1.10f
+#define BALL_KI             0.01f
+#define BALL_KD             10.5f
 //误差积分限幅（脉冲，防 windup）：±200 ≈ ±22°，远小于机械限位
 #define BALL_INTEGRAL_MAX   200.0f
 //调参指引：回中慢 → 加大 KP（注意过冲，配 KD 压制）；稳态振铃 → 减小 KP/加大 KD
