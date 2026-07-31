@@ -45,7 +45,6 @@ EMM 协议（校验固定 `0x6B`，手册 4.1 / 5.3.12 / 5.4.2 / 5.4.4 节）：
 | 命令 | 帧 | 说明 |
 |---|---|---|
 | 触发回零 | `01 9A 00 00 6B` | 单圈就近回零（模式 00，同步 00），返回 02 / 12 |
-| 读回零状态 | `01 3B 6B` | 返回标志：bit2=正在回零(0x04)，bit3=失败(0x08)，`(flag & 0x0C) == 0` 即完成 |
 | 位置模式 | `01 FD 方向 速度(2B) 加速度 脉冲(4B) 运动模式00 同步00 6B` | 速度 0000-0BB8(0-3000RPM)，加速度 00-FF 档位，脉冲 4B 无符号 |
 
 设计决策：用标准 `FD` 位置模式而非快速位置模式 `F1/FC`（后者需固件 V2.0.0+；FD 兼容所有版本，13 字节 @115200 传输约 1.1ms，30ms 周期下无性能问题）。
@@ -53,16 +52,12 @@ EMM 协议（校验固定 `0x6B`，手册 4.1 / 5.3.12 / 5.4.2 / 5.4.4 节）：
 API：
 
 ```c
-typedef enum { STEER_IDLE, STEER_HOMING, STEER_DONE, STEER_FAIL } stepper_state_t;
-
-void    stepper_init(void);                 // 使能 UART3 接收中断
-void    stepper_home_start(void);           // 发送 9A 回零命令
-void    stepper_home_proc(void);            // 周期轮询 3B 回零状态（≥100ms 间隔），超时 5s 判失败
-void    stepper_move(int32_t pulses);       // 有符号脉冲位置运动（内部拆分方向字节）
-stepper_state_t stepper_get_state(void);
+void stepper_init(void);                 // 使能 UART3 接收中断
+void stepper_home_start(void);           // 发送 9A 回零命令
+void stepper_move(int32_t pulses);       // 有符号脉冲位置运动（内部拆分方向字节）
 ```
 
-- 回零流程：HOMING 期间轮询 `3B`，标志 `&0x0C`：0x04 继续等待，0x08 失败（重试 1 次后 FAIL），0x00 完成 → DONE。
+- 回零流程：发送 `9A` 命令后延时 1s（ball 层用 `sys_tick_ms` 时间戳非阻塞等待，不做 `3B` 状态轮询），1s 后默认回零完成。
 - `stepper_move()`：脉冲 ≥0 → 方向 00(CW) + 原值；脉冲 <0 → 方向 01(CCW) + 绝对值。
 - 运动参数常量（可调）：`STEER_SPEED_RPM`、`STEER_ACC`。
 - UART3 应答解析（ISR 中）：02=命令正确，12=已在零点/限位触发，E2=参数错误，EE=格式错误，9F=动作完成（回零完成主动上报）。应答记录到状态变量供上层读取。
@@ -97,20 +92,19 @@ stepper_move((int32_t)angle_pulse)
 ### 5.4 运行状态机
 
 ```
-上电 ──> HOMING（回零轮询，OLED 显示）──> READY（零点 = 0 = 中位）
+上电 ──> HOMING（发回零命令 + 延时 1s）──> READY（零点 = 0 = 中位）
 Q3 且 enter=1 ──> RUN（PID 控制）
 enter=0 ──> 目标角度回 0（固定速度位置运动）──> READY
 切走 Q3 ──> IDLE（电机停，PID 状态清零）
 ```
 
 - 回零在上电后自动执行，与 enter 无关（用户要求"上电执行一次回零"）。
-- 回零未完成时进入 Q3 也等回零完成才允许 RUN。
-- 回零 FAIL：OLED 显示错误，不启动 RUN，等待重上电。
+- HOMING 阶段：发送回零命令后非阻塞延时 1s（用 `sys_tick_ms` 时间戳），期间不允许 RUN。
 
 ### 5.5 OLED 显示（Q3 复用第 3/4 行）
 
 - 第 3 行：小球位置 mm（`P: 123mm`）+ 丢帧标记（无数据时显示 `LOST`）。
-- 第 4 行：摆球状态（`HOMING` / `READY` / `RUN` / `FAIL`）+ 帧计数。
+- 第 4 行：摆球状态（`HOMING` / `READY` / `RUN`）+ 帧计数。
 
 ## 6. 关键常量汇总（可调）
 
@@ -120,7 +114,7 @@ enter=0 ──> 目标角度回 0（固定速度位置运动）──> READY
 | STEER_MIN_PULSES / MAX | -213 / +711 | 角度限位 -24°/+80° |
 | STEER_SPEED_RPM | 500（初始） | 位置模式速度 |
 | STEER_ACC | 100（初始） | 加速度档位 0-255 |
-| STEER_HOME_TIMEOUT_MS | 5000 | 回零超时 |
+| STEER_HOME_DELAY_MS | 1000 | 发回零命令后等待时间 |
 | BALL_KP / KI / KD | 5.0 / 0.1 / 30.0 | 增量 PID 参数（标定） |
 | BALL_CENTER_MM | 125 | 水管中点 |
 | BALL_FRAME_TIMEOUT_MS | 500 | 视觉丢帧判定 |
@@ -145,7 +139,7 @@ enter=0 ──> 目标角度回 0（固定速度位置运动）──> READY
 
 - CCS 内编译通过（本环境无法构建，只能语法/结构自审后由用户在 CCS 构建）。
 - 串口调试验证（UART3 上位机观察应答）：
-  - 上电 → 观察回零完成（OLED HOMING→READY）
+  - 上电 → HOMING 1s 后转 READY
   - 发 `0xaa 0x7d 0x55`（125mm）→ 电机不动或小幅修正
   - 发 `0xaa 0x5f 0x55`（95mm）→ 摆杆倾斜补偿，小球回中
   - 停发数据 >500ms → OLED 显示 LOST，电机保持
