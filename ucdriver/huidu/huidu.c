@@ -25,6 +25,8 @@ static float q4_base_speed_cmd = 0.0f;
 static float q4_error_filtered = 0.0f;
 static float q4_target_speed_1_cmd = 0.0f;
 static float q4_target_speed_2_cmd = 0.0f;
+// Q4 直线匀速测试目标速度，单位 mm/s
+#define Q4_STRAIGHT_TEST_SPEED  300.0f
 
 // 比例控制参数
 static float huidu_base_speed = 350.0f;  // 可调基准速度 mm/s
@@ -92,6 +94,14 @@ void adjust_motor()
     // AB 段 1.5m 以 260mm/s 行驶约 5.8s，仍满足 8s 限时；其他题目保持原速度。
     // Q4 提高巡航速度保证 AB 段时间，同时用斜坡限制起步加速度。
     // 每个 10ms 周期最多增加 10mm/s，约 0.32s 到达 320mm/s。
+    // Q4 直线匀速测试：关闭差速循迹和速度斜坡，先单独验证摆球闭环。
+    if(question == 4)
+    {
+        target_speed_1 = Q4_STRAIGHT_TEST_SPEED;
+        target_speed_2 = Q4_STRAIGHT_TEST_SPEED;
+        return;
+    }
+
     if(question != 4 || (target_speed_1 == 0.0f && target_speed_2 == 0.0f))
     {
         q4_base_speed_cmd = 0.0f;

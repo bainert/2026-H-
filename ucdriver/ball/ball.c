@@ -376,7 +376,7 @@ void ball_proc(void)
         if(question == 3)
         {
             if(ball_phase == 1)
-                control_kp = 1.20f;
+                control_kp = 1.80f;
             else if(ball_phase == 2)
                 control_kp = 0.65f;
         }
