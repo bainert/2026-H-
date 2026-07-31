@@ -2,6 +2,7 @@
 #include "ti_msp_dl_config.h"
 #include "huidu.h"
 #include "key.h"
+#include "ball.h"
 
 //30ms定时器计数变量
 extern volatile uint32_t counter_1_A;
@@ -176,43 +177,52 @@ void motor_pid_INST_IRQHandler(void)
         //发车
         if(enter == 1)
         {
-            //灰度控制
-            adjust_motor();
-            //里程累计（使用编码器计数值，精度更高）
-            odometer += ((float)counter_1_A + (float)counter_2_A) * 0.5f
-                        / motor_xianshu * PI * motor_wheel_d;
-            //计算电机速度
-            calculate_speed(1);
-            calculate_speed(2);
-            //pid控制
-            motor_PID(1);
-            motor_PID(2);
-
-            /* 第二问: 跑圈计时 + 自动停止 */
-            if(question == 2)
+            if(question == 3)
             {
-                if(lap_state == LAP_IDLE || lap_state == LAP_COMPLETE)
-                {
-                    // 从待命或完成状态 -> 开始跑圈，里程清零
-                    odometer = 0.0f;
-                    lap_state = LAP_RUNNING;
-                    lap_start_ms = sys_tick_ms;
-                }
-                else if(lap_state == LAP_RUNNING)
-                {
-                    /* 里程计到达5.20m时停车 */
-                    if(odometer >= 5000.0f)
-                    {
-                        lap_state = LAP_COMPLETE;
-                        lap_total_ms = sys_tick_ms - lap_start_ms;
-                        enter = 0;  // 停止电机
-                    }
-                }
+                //Q3 静态摆球：小车电机停，不循迹，交给摆球控制
+                motor_set_duty(1, 0);
+                motor_set_duty(2, 0);
             }
             else
             {
-                // 非Q2题号时重置圈状态，防止切换题号回来时状态混乱
-                lap_state = LAP_IDLE;
+                //灰度控制
+                adjust_motor();
+                //里程累计（使用编码器计数值，精度更高）
+                odometer += ((float)counter_1_A + (float)counter_2_A) * 0.5f
+                            / motor_xianshu * PI * motor_wheel_d;
+                //计算电机速度
+                calculate_speed(1);
+                calculate_speed(2);
+                //pid控制
+                motor_PID(1);
+                motor_PID(2);
+
+                /* 第二问: 跑圈计时 + 自动停止 */
+                if(question == 2)
+                {
+                    if(lap_state == LAP_IDLE || lap_state == LAP_COMPLETE)
+                    {
+                        // 从待命或完成状态 -> 开始跑圈，里程清零
+                        odometer = 0.0f;
+                        lap_state = LAP_RUNNING;
+                        lap_start_ms = sys_tick_ms;
+                    }
+                    else if(lap_state == LAP_RUNNING)
+                    {
+                        /* 里程计到达5.20m时停车 */
+                        if(odometer >= 5000.0f)
+                        {
+                            lap_state = LAP_COMPLETE;
+                            lap_total_ms = sys_tick_ms - lap_start_ms;
+                            enter = 0;  // 停止电机
+                        }
+                    }
+                }
+                else
+                {
+                    // 非Q2题号时重置圈状态，防止切换题号回来时状态混乱
+                    lap_state = LAP_IDLE;
+                }
             }
         }
         //未发车时（包括Q2完成后的状态），电机停止
@@ -221,6 +231,9 @@ void motor_pid_INST_IRQHandler(void)
             motor_set_duty(1, 0);
             motor_set_duty(2, 0);
         }
+
+        //摆球控制 30ms 周期调用（Q3 时生效，非 Q3 自动待命）
+        ball_proc();
 
     default:
         break;

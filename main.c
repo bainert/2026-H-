@@ -36,6 +36,7 @@
 #include "delay.h"
 #include "key.h"
 #include "motor.h"
+#include "ball.h"
 
 //是否发车 0-未发车 1-发车
 extern volatile int enter;
@@ -55,6 +56,11 @@ extern volatile float odometer;
 
 // 外部声明 mpu_port.c 里的时间戳变量
 extern volatile uint32_t sys_tick_ms;
+
+// Q3 摆球控制
+extern volatile uint8_t ball_position_mm;
+extern volatile uint8_t ball_frame_lost;
+extern volatile uint8_t ball_running;
 
 // 第二问: 跑圈状态
 extern volatile lap_state_t lap_state;
@@ -80,12 +86,24 @@ void oled_proc(void)
     OLED_ShowString(0,12,(u8 *)"question: ", 12);
     OLED_ShowNum(54, 12, question, 2, 12);
 
-    //第三行：里程计
-    OLED_ShowString(0, 24, (u8 *)"D:", 12);
-    OLED_ShowFloat(12, 24, odometer / 1000.0f, 1, 2, 12);
-    OLED_ShowString(34, 24, (u8 *)"m", 12);
+    //第三行：Q3 显示小球位置，否则里程计
+    if(question == 3)
+    {
+        OLED_ShowString(0, 24, (u8 *)"P:", 12);
+        if(ball_frame_lost)
+            OLED_ShowString(12, 24, (u8 *)"LOST", 12);
+        else
+            OLED_ShowNum(12, 24, (u32)ball_position_mm, 3, 12);
+        OLED_ShowString(36, 24, (u8 *)"mm", 12);
+    }
+    else
+    {
+        OLED_ShowString(0, 24, (u8 *)"D:", 12);
+        OLED_ShowFloat(12, 24, odometer / 1000.0f, 1, 2, 12);
+        OLED_ShowString(34, 24, (u8 *)"m", 12);
+    }
 
-    //第四行：跑圈计时（Q2）
+    //第四行：Q2 计时 / Q3 摆球状态 / 其他清空
     if(question == 2)
     {
         if(lap_state == LAP_RUNNING)
@@ -106,9 +124,17 @@ void oled_proc(void)
             OLED_ShowString(0, 36, (u8 *)"Press ENTER", 12);
         }
     }
+    else if(question == 3)
+    {
+        OLED_ShowString(0, 36, (u8 *)"BAL:", 12);
+        if(ball_running)
+            OLED_ShowString(36, 36, (u8 *)"RUN ", 12);
+        else
+            OLED_ShowString(36, 36, (u8 *)"STOP", 12);
+    }
     else
     {
-        // 非Q2时清除第四行
+        // 非Q2/Q3时清除第四行
         OLED_ShowString(0, 36, (u8 *)"            ", 12);
     }
 
@@ -133,6 +159,9 @@ int main(void)
     //开启AA编码器中断
     NVIC_EnableIRQ(dc_motor_GPIOA_INT_IRQN);
     
+    //Q3 摆球控制初始化（含步进电机回零，阻塞约1s）
+    ball_init();
+
     //初始化电机
     motor_init(1);
     motor_init(2);
