@@ -7,7 +7,7 @@
 //目标点（mm）：中心O / ±5cm（视觉坐标系 0~250，中心 125）
 #define BALL_TARGET_CENTER_MM  125.0f
 #define BALL_TARGET_PLUS5_MM   175.0f
-#define BALL_TARGET_MINUS5_MM  75.0f
+#define BALL_TARGET_MINUS5_MM  65.0f
 //到达判定：|位置-目标|≤8mm 且持续 30×10ms=300ms 视为到位
 //（8mm 留 2mm 裕量给 ±1cm 赛题要求，300ms 抗视觉抖动误判）
 #define BALL_ARRIVE_ERR_MM     8.0f
@@ -27,9 +27,9 @@
 //  KP：球偏 1mm → 摆杆倾斜 KP 脉冲（1.5 脉冲≈0.17°，50mm 偏差≈8.4°→加速度 1.4m/s²）
 //  KI：修摩擦静差（小即可，过大引起低频振荡）
 //  KD：阻尼，抑制过冲振荡（对 1mm 量化敏感，若高速抖动就调小）
-#define BALL_KP             1.10f
+#define BALL_KP             0.7f
 #define BALL_KI             0.01f
-#define BALL_KD             10.5f
+#define BALL_KD             12.0f
 //误差积分限幅（脉冲，防 windup）：±200 ≈ ±22°，远小于机械限位
 #define BALL_INTEGRAL_MAX   200.0f
 //调参指引：回中慢 → 加大 KP（注意过冲，配 KD 压制）；稳态振铃 → 减小 KP/加大 KD
