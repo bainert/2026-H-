@@ -1,40 +1,34 @@
-# Task 4 Report: motor.c — Q2 Lap State Machine + Point-A Detection
+# Task 4 报告：构建集成（sources.mk / subdir 文件 / makefile）
 
-## Status: ✅ Complete
+## 状态：DONE_WITH_CONCERNS
 
-## Changes Made
+## 改动清单
 
-**File: `ucdriver/motor/motor.c`**
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `Debug/sources.mk` | 修改 | SUBDIRS 在 `ucdriver/uart \` 后追加 `ucdriver/ball \` 与 `ucdriver/stepper \`（续行符完整，L129-130） |
+| `Debug/ucdriver/ball/subdir_vars.mk` | 新建 | 登记 `../ucdriver/ball/ball.c` → `ball.o`/`ball.d`，格式对齐 uart 模板 |
+| `Debug/ucdriver/ball/subdir_rules.mk` | 新建 | 编译规则，-I 列表追加 `ucdriver/ball`、`ucdriver/stepper` 两个路径，其余照抄 uart |
+| `Debug/ucdriver/stepper/subdir_vars.mk` | 新建 | 登记 `../ucdriver/stepper/stepper.c` → `stepper.o`/`stepper.d` |
+| `Debug/ucdriver/stepper/subdir_rules.mk` | 新建 | 编译规则，-I 列表追加 `ucdriver/ball`、`ucdriver/stepper` |
+| `Debug/makefile` | 修改 | ① ORDERED_OBJS 追加 `"./ucdriver/ball/ball.o"`、`"./ucdriver/stepper/stepper.o"`（L25-26）；② -include 追加 2 条 subdir_vars.mk（L46-47）；③ -include 追加 2 条 subdir_rules.mk（L56-57）；④ clean 两行末尾追加 `ball.o`/`stepper.o` 与 `ball.d`/`stepper.d`（L168-169） |
 
-### 1. Added extern declarations (lines 15-20)
-```c
-extern volatile int question;
-extern volatile lap_state_t lap_state;
-extern volatile uint32_t lap_start_ms;
-extern volatile uint32_t lap_total_ms;
-extern volatile uint32_t sys_tick_ms;
-```
-These variables are defined in `key.c` (lap_state_t, lap_start_ms, lap_total_ms, question) and `mpu_port.c` (sys_tick_ms).
+## 自审结果（Step 7）
 
-### 2. Modified `motor_pid_INST_IRQHandler` (lines 183-208)
-- **Removed `break`** after `motor_PID(2)` — now execution falls through to the `if(enter == 0)` stop block, even when Q2 completes and sets `enter = 0`.
-- **Added Q2 lap state machine** inside `if(enter == 1)`:
-  - `LAP_IDLE` or `LAP_COMPLETE` → `LAP_RUNNING`, capture `lap_start_ms`
-  - `LAP_RUNNING` → after 2s delay, detect point A via gray sensors
-- **Point A detection**: `huidu_value[1]` (L1) && `huidu_value[2]` (M) && `huidu_value[3]` (R1) == 1, AND `huidu_value[0]` (L2) && `huidu_value[4]` (R2) == 0
-- On detection: `lap_state = LAP_COMPLETE`, `lap_total_ms` recorded, `enter = 0` to stop motors
-- The outer `if(enter == 0)` block then sets both motors to 0 duty
-
-## Verification Checklist
-- [x] Original `break` removed — enter==0 block handles motor stop post-competition
-- [x] `huidu_value` indices match declaration: `[0]=L2, [1]=L1, [2]=M, [3]=R1, [4]=R2`
-- [x] `sys_tick_ms` extern resolved (declared in `mpu_port.c`, extern in `main.c`)
-- [x] 2-second delay before A detection prevents false trigger at start
-- [x] State machine: IDLE → RUNNING → COMPLETE, properly cycles
+- [x] `Debug/ucdriver/ball/`、`Debug/ucdriver/stepper/` 目录已创建（写入文件前 `New-Item -Force` 确认存在）
+- [x] sources.mk SUBDIRS 续行符完整（末行为 `ucdriver/stepper \`，无多余空行破坏续行）
+- [x] makefile 三处均含对应条目：ORDERED_OBJS 2 行、-include 4 条（2 vars + 2 rules）、clean 4 个目标（2 .o + 2 .d）——经 grep 全量核对
+- [x] 两个 rules.mk 的 -I 列表均含 `ucdriver/ball` 与 `ucdriver/stepper` 两个新路径
+- [x] vars 文件路径与源文件匹配：`ucdriver/ball/ball.c`、`ucdriver/stepper/stepper.c` 均存在（glob 确认）
+- [x] 格式与 `Debug/ucdriver/uart/subdir_vars.mk`、`subdir_rules.mk` 模板一致（SHELL/`%` 模式规则/`d_raw` 中间文件/`-MT"$(@)"` 等）
 
 ## Commit
-`ebf2e70` — `motor.c: 添加 Q2 跑圈状态机 + A点检测逻辑`
+
+`b12c7f2` — `build: 注册 ball/stepper 模块到 CCS 构建系统`（6 files changed, 380 insertions）
+
+- 仅提交 Debug/ 相关 6 个文件；未包含 `.superpowers/`、`docs/`、`empty.syscfg` 等其他工作区改动
 
 ## Concerns
-- A点检测完全依赖灰度传感器的灵敏度标定，实际场地光照条件需测试验证
-- 起步2s延迟硬编码，若实际A-B直线更长需调整
+
+1. **`.gitignore` 冲突**：仓库 `.gitignore:1` 为 `Debug/`，且 git 历史中从未追踪过 Debug/ 下任何文件（此前任务仅提交 `ucdriver/` 源码）。本次按 brief Step 8 要求使用 `git add -f` 强制添加并提交。影响：此后每次手动编辑 Debug/ 构建文件（本项目既定流程）都会产生 diff，版本控制行为与既有惯例不同。若不想长期追踪，可后续用 `git rm --cached` 撤出索引（不影响工作区），或修改 `.gitignore` 白名单。
+2. **未做实际构建验证**：环境无法脱离 CCS 构建（AGENTS.md 已注明），未运行 make；语法层面已人工核对该类 makefile 的惯用格式（逐字对照 uart 模板）。

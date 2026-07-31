@@ -1,85 +1,156 @@
-### Task 4: motor.c — 30ms ISR 添加 A 点检测逻辑
-
+﻿### Task 4: 鏋勫缓闆嗘垚锛坰ources.mk / subdir 鏂囦欢 / makefile锛?
 **Files:**
-- Modify: `ucdriver/motor/motor.c`
+- Modify: `Debug/sources.mk:120-129`锛圫UBDIRS锛?- Create: `Debug/ucdriver/ball/subdir_vars.mk`
+- Create: `Debug/ucdriver/ball/subdir_rules.mk`
+- Create: `Debug/ucdriver/stepper/subdir_vars.mk`
+- Create: `Debug/ucdriver/stepper/subdir_rules.mk`
+- Modify: `Debug/makefile:12-24`锛圤RDERED_OBJS锛夈€乣Debug/makefile:37-51`锛?include锛夈€乣Debug/makefile:162-163`锛坈lean锛?
+**Interfaces:**
+- Consumes: Task 1/2 鐨勬簮鏂囦欢
+- Produces: 鍙湪 CCS 涓瀯寤虹殑宸ョ▼
 
-**接口:**
-- Consumes: `lap_state`, `lap_start_ms`, `lap_total_ms`（来自 Task 2）, `huidu_value[5]`（来自 Task 3）, `question`, `enter`, `sys_tick_ms`
-- Produces: 修改 `enter` 标志以停止电机
+- [ ] **Step 1: `Debug/sources.mk` 鈥?SUBDIRS 杩藉姞涓ょ洰褰?*
 
-- [ ] **Step 1: 在 motor.c 的 extern 声明区添加 lap 相关变量**
-
-在 `extern volatile uint8_t key_debounce_cnt;` 后面添加：
-
-```c
-/* 第二问 lap 状态机 */
-extern volatile int question;
-extern volatile lap_state_t lap_state;
-extern volatile uint32_t lap_start_ms;
-extern volatile uint32_t lap_total_ms;
-extern volatile uint32_t sys_tick_ms;
+鍦?`ucdriver/uart \` 琛屽悗杩藉姞锛?
+```makefile
+ucdriver/ball \
+ucdriver/stepper \
 ```
 
-- [ ] **Step 2: 修改 motor_pid_INST_IRQHandler**
+锛堟敞鎰忎繚鐣欐瘡琛岀粨灏剧殑 `\`锛屾渶鍚庝竴琛?`ucdriver/uart \` 鍘熸湁琛屽熬缁绗︿笉鍙橈級
 
-将原 ISR 函数体替换为：
+- [ ] **Step 2: 鍒涘缓 `Debug/ucdriver/ball/subdir_vars.mk`**
 
-```c
-//30ms定时器中断服务函数
-void motor_pid_INST_IRQHandler(void)
-{
-    //按键消抖计数器递减（60ms消抖窗口）
-    if(key_debounce_cnt) key_debounce_cnt--;
-   switch(DL_Timer_getPendingInterrupt(motor_pid_INST))
-   {
-    case DL_TIMER_IIDX_LOAD:
-        //发车
-        if(enter == 1)
-        {
-            //灰度控制
-            adjust_motor();
-            //计算电机速度
-            calculate_speed(1);
-            calculate_speed(2);
-            //pid控制
-            motor_PID(1);
-            motor_PID(2);
+```makefile
+################################################################################
+# Automatically-generated file. Do not edit!
+################################################################################
 
-            /* 第二问: 跑圈计时 + 自动停止 */
-            if(question == 2)
-            {
-                if(lap_state == LAP_IDLE || lap_state == LAP_COMPLETE)
-                {
-                    // 从待命或完成状态 -> 开始跑圈
-                    lap_state = LAP_RUNNING;
-                    lap_start_ms = sys_tick_ms;
-                }
-                else if(lap_state == LAP_RUNNING)
-                {
-                    // 起步后延迟2s开始检测A点，避免出发位置误判
-                    if(sys_tick_ms - lap_start_ms > 2000)
-                    {
-                        /* A点特征: L1+M+R1同时检测到黑线, L2+R2丢线 */
-                        if(huidu_value[1] && huidu_value[2] && huidu_value[3]
-                            && !huidu_value[0] && !huidu_value[4])
-                        {
-                            lap_state = LAP_COMPLETE;
-                            lap_total_ms = sys_tick_ms - lap_start_ms;
-                            enter = 0;  // 停止电机
-                        }
-                    }
-                }
-            }
-        }
-        //未发车时（包括Q2完成后的状态），电机停止
-        if(enter == 0)
-        {
-            motor_set_duty(1, 0);
-            motor_set_duty(2, 0);
-        }
+SHELL = cmd.exe
 
-    default:
-        break;
-   }
-}
+# Add inputs and outputs from these tool invocations to the build variables 
+C_SRCS += \
+../ucdriver/ball/ball.c 
+
+C_DEPS += \
+./ucdriver/ball/ball.d 
+
+OBJS += \
+./ucdriver/ball/ball.o 
+
+OBJS__QUOTED += \
+"ucdriver\ball\ball.o" 
+
+C_DEPS__QUOTED += \
+"ucdriver\ball\ball.d" 
+
+C_SRCS__QUOTED += \
+"../ucdriver/ball/ball.c" 
 ```
+
+- [ ] **Step 3: 鍒涘缓 `Debug/ucdriver/ball/subdir_rules.mk`**
+
+锛堢洰褰曞悕 ball锛岀紪璇戝懡浠?-I 鍒楄〃杩藉姞 ball/stepper 涓や釜璺緞锛屽叾浣欑収鎶勭幇鏈?`Debug/ucdriver/uart/subdir_rules.mk` 鏍煎紡锛?
+```makefile
+################################################################################
+# Automatically-generated file. Do not edit!
+################################################################################
+
+SHELL = cmd.exe
+
+# Each subdirectory must supply rules for building sources it contributes
+ucdriver/ball/%.o: ../ucdriver/ball/%.c $(GEN_OPTS) | $(GEN_FILES) $(GEN_MISC_FILES)
+	@echo 'Arm Compiler - building file: "$<"'
+	"F:/ti/ccs2050/ccs/tools/compiler/ti-cgt-armllvm_4.0.4.LTS/bin/tiarmclang.exe" -c @"device.opt"  -march=thumbv6m -mcpu=cortex-m0plus -mfloat-abi=soft -mlittle-endian -mthumb -O0 -I"C:/Users/Administrator/workspace_ccstheia/car_demo" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/Debug" -I"F:/ti/ccs2050/mspm0_sdk_2_10_00_04/source/third_party/CMSIS/Core/Include" -I"F:/ti/ccs2050/mspm0_sdk_2_10_00_04/source" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/oled" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/uart" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/delay" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/key" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/huidu" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/motor" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/ball" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/stepper" -gdwarf-3 -Wall -MMD -MP -MF"ucdriver/ball/$(basename $(<F)).d_raw" -MT"$(@)"  $(GEN_OPTS__FLAG) -o"$@" "$<"
+	@echo 'Finished building: "$<"'
+	@echo ' '
+```
+
+- [ ] **Step 4: 鍒涘缓 `Debug/ucdriver/stepper/subdir_vars.mk`**
+
+```makefile
+################################################################################
+# Automatically-generated file. Do not edit!
+################################################################################
+
+SHELL = cmd.exe
+
+# Add inputs and outputs from these tool invocations to the build variables 
+C_SRCS += \
+../ucdriver/stepper/stepper.c 
+
+C_DEPS += \
+./ucdriver/stepper/stepper.d 
+
+OBJS += \
+./ucdriver/stepper/stepper.o 
+
+OBJS__QUOTED += \
+"ucdriver\stepper\stepper.o" 
+
+C_DEPS__QUOTED += \
+"ucdriver\stepper\stepper.d" 
+
+C_SRCS__QUOTED += \
+"../ucdriver/stepper/stepper.c" 
+```
+
+- [ ] **Step 5: 鍒涘缓 `Debug/ucdriver/stepper/subdir_rules.mk`**
+
+锛堢洰褰曞悕 stepper锛?I 鍒楄〃鍚屾牱杩藉姞 ball/stepper 涓や釜璺緞锛?
+```makefile
+################################################################################
+# Automatically-generated file. Do not edit!
+################################################################################
+
+SHELL = cmd.exe
+
+# Each subdirectory must supply rules for building sources it contributes
+ucdriver/stepper/%.o: ../ucdriver/stepper/%.c $(GEN_OPTS) | $(GEN_FILES) $(GEN_MISC_FILES)
+	@echo 'Arm Compiler - building file: "$<"'
+	"F:/ti/ccs2050/ccs/tools/compiler/ti-cgt-armllvm_4.0.4.LTS/bin/tiarmclang.exe" -c @"device.opt"  -march=thumbv6m -mcpu=cortex-m0plus -mfloat-abi=soft -mlittle-endian -mthumb -O0 -I"C:/Users/Administrator/workspace_ccstheia/car_demo" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/Debug" -I"F:/ti/ccs2050/mspm0_sdk_2_10_00_04/source/third_party/CMSIS/Core/Include" -I"F:/ti/ccs2050/mspm0_sdk_2_10_00_04/source" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/oled" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/uart" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/delay" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/key" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/huidu" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/motor" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/ball" -I"C:/Users/Administrator/workspace_ccstheia/car_demo/ucdriver/stepper" -gdwarf-3 -Wall -MMD -MP -MF"ucdriver/stepper/$(basename $(<F)).d_raw" -MT"$(@)"  $(GEN_OPTS__FLAG) -o"$@" "$<"
+	@echo 'Finished building: "$<"'
+	@echo ' '
+```
+
+- [ ] **Step 6: 淇敼 `Debug/makefile`**
+
+`ORDERED_OBJS` 鍧楋紙`"./ucdriver/uart/uart.o" \` 琛屽悗锛夎拷鍔狅細
+
+```makefile
+"./ucdriver/ball/ball.o" \
+"./ucdriver/stepper/stepper.o" \
+```
+
+`-include` 鐨?subdir_vars.mk 鍧楋紙`ucdriver/uart/subdir_vars.mk` 琛屽悗锛夎拷鍔狅細
+
+```makefile
+-include ucdriver/ball/subdir_vars.mk
+-include ucdriver/stepper/subdir_vars.mk
+```
+
+`-include` 鐨?subdir_rules.mk 鍧楋紙`ucdriver/uart/subdir_rules.mk` 琛屽悗锛夎拷鍔狅細
+
+```makefile
+-include ucdriver/ball/subdir_rules.mk
+-include ucdriver/stepper/subdir_rules.mk
+```
+
+clean 鐩爣鐨勪袱琛?`-$(RM) "..." "ucdriver\uart\uart.o" ...`锛?62 琛岋級鍜?`... "ucdriver\uart\uart.d" ...`锛?63 琛岋級鏈熬鍒嗗埆杩藉姞锛?
+```makefile
+"ucdriver\ball\ball.o" "ucdriver\stepper\stepper.o"
+"ucdriver\ball\ball.d" "ucdriver\stepper\stepper.d"
+```
+
+- [ ] **Step 7: 鑷**
+
+妫€鏌ワ細`Debug/ucdriver/ball/`銆乣Debug/ucdriver/stepper/` 鐩綍瀛樺湪锛堟柊寤?subdir_vars.mk/rules.mk 鍓嶅厛 `mkdir`锛夛紱sources.mk 缁绗﹀畬鏁达紱makefile 涓夊锛圤RDERED_OBJS / 2 涓?-include 鍧?/ clean锛夐兘鍔犱簡瀵瑰簲鏉＄洰锛?I 鍒楄〃鍖呭惈涓や釜鏂拌矾寰勩€?
+- [ ] **Step 8: Commit**
+
+```bash
+git add Debug/sources.mk Debug/makefile Debug/ucdriver/ball Debug/ucdriver/stepper
+git commit -m "build: 娉ㄥ唽 ball/stepper 妯″潡鍒?CCS 鏋勫缓绯荤粺"
+```
+
+---
+

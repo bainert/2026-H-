@@ -45,6 +45,8 @@
                                     <listOptionValue value="${PROJECT_ROOT}/ucdriver/delay"/>
                                     <listOptionValue value="${PROJECT_ROOT}/ucdriver/key"/>
                                     <listOptionValue value="${PROJECT_ROOT}/ucdriver/huidu"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/ucdriver/ball"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/ucdriver/stepper"/>
                                     <listOptionValue value="${PROJECT_ROOT}/ucdriver/motor"/>
                                 </option>
                                 <option id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.compilerID.DEFINE.1238593295" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.compilerID.DEFINE" valueType="definedSymbols">

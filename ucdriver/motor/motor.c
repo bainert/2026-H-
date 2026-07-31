@@ -4,7 +4,7 @@
 #include "key.h"
 #include "ball.h"
 
-//30ms定时器计数变量
+//10ms定时器计数变量
 extern volatile uint32_t counter_1_A;
 extern volatile uint32_t counter_2_A;
 
@@ -41,9 +41,9 @@ float current_error_1 = 0.0f;
 float last_error_2 = 0.0f;
 float current_error_2 = 0.0f;
 
-//电机pid参数
+//电机pid参数（原30ms周期整定，改10ms周期后Ki缩小3倍，保持积分速率不变；Kp不变）
 float motor_Kp = 0.6f;
-float motor_Ki = 1.9f;
+float motor_Ki = 0.63f;
 
 void motor_init(uint8_t motor_id)
 {
@@ -52,9 +52,9 @@ void motor_init(uint8_t motor_id)
     //开启定时器
     DL_Timer_startCounter(PWMAB_INST);
 
-    //开启30ms定时器
+    //开启10ms定时器
     DL_Timer_startCounter(motor_pid_INST);
-    //开启30ms定时器中断
+    //开启10ms定时器中断
     NVIC_EnableIRQ(motor_pid_INST_INT_IRQN);
 
     if(motor_id == 1)
@@ -128,12 +128,12 @@ void calculate_speed(uint8_t motor_id)
 {
     if(motor_id == 1)
     {
-        speed_1 = (float)counter_1_A / motor_xianshu * PI * motor_wheel_d / 0.03f; //单位：mm/s
+        speed_1 = (float)counter_1_A / motor_xianshu * PI * motor_wheel_d / 0.01f; //单位：mm/s（10ms周期）
         counter_1_A = 0;
     }
     if(motor_id == 2)
     {
-        speed_2 = (float)counter_2_A / motor_xianshu * PI * motor_wheel_d / 0.03f;
+        speed_2 = (float)counter_2_A / motor_xianshu * PI * motor_wheel_d / 0.01f;
         counter_2_A = 0;
     }
 }
@@ -232,7 +232,7 @@ void motor_pid_INST_IRQHandler(void)
             motor_set_duty(2, 0);
         }
 
-        //摆球控制 30ms 周期调用（Q3 时生效，非 Q3 自动待命）
+        //摆球控制 10ms 周期调用（Q3 时生效，非 Q3 自动待命）
         ball_proc();
 
     default:

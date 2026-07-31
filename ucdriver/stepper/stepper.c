@@ -8,8 +8,8 @@
 #define STEPPER_CRC         0x6B
 
 //位置模式运动参数（可调）
-#define STEPPER_SPEED_RPM   500     //速度 0-3000 RPM
-#define STEPPER_ACC         100     //加速度档位 0-255，越大加速越快
+#define STEPPER_SPEED_RPM   30     //速度 0-3000 RPM
+#define STEPPER_ACC         0     //加速度档位 0-255，越大加速越快
 //最近一次电机应答字节
 volatile uint8_t stepper_ack = 0;
 

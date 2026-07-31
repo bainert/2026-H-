@@ -28,6 +28,7 @@ const TIMER   = scripting.addModule("/ti/driverlib/TIMER", {}, false);
 const TIMER1  = TIMER.addInstance();
 const UART    = scripting.addModule("/ti/driverlib/UART", {}, false);
 const UART1   = UART.addInstance();
+const UART2   = UART.addInstance();
 const VREF    = scripting.addModule("/ti/driverlib/VREF");
 
 /**
@@ -204,9 +205,9 @@ SYSTICK.period          = 80000;
 
 TIMER1.$name            = "motor_pid";
 TIMER1.timerMode        = "PERIODIC_UP";
-TIMER1.timerPeriod      = "30ms";
 TIMER1.timerClkPrescale = 100;
 TIMER1.interrupts       = ["LOAD"];
+TIMER1.timerPeriod      = "10ms";
 
 UART1.$name                    = "UART_0";
 UART1.targetBaudRate           = 115200;
@@ -215,6 +216,22 @@ UART1.peripheral.rxPin.$assign = "PA31";
 UART1.peripheral.txPin.$assign = "PA28";
 UART1.txPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric2";
 UART1.rxPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric3";
+
+UART2.targetBaudRate                   = 115200;
+UART2.enabledInterrupts                = ["RX"];
+UART2.$name                            = "UART_3";
+UART2.peripheral.$assign               = "UART3";
+UART2.peripheral.rxPin.$assign         = "PA25";
+UART2.peripheral.txPin.$assign         = "PA26";
+UART2.txPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric10";
+UART2.txPinConfig.direction            = scripting.forceWrite("OUTPUT");
+UART2.txPinConfig.hideOutputInversion  = scripting.forceWrite(false);
+UART2.txPinConfig.onlyInternalResistor = scripting.forceWrite(false);
+UART2.txPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
+UART2.rxPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric11";
+UART2.rxPinConfig.hideOutputInversion  = scripting.forceWrite(false);
+UART2.rxPinConfig.onlyInternalResistor = scripting.forceWrite(false);
+UART2.rxPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
 
 VREF.basicIntVolt           = "DL_VREF_BUFCONFIG_OUTPUT_2_5V";
 VREF.vrefPosPinConfig.$name = "ti_driverlib_gpio_GPIOPinGeneric5";

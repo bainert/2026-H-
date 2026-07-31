@@ -63,9 +63,9 @@ void adjust_motor()
     {
         // 丢线(逻辑待实现)
         lost_count++;
-        if(lost_count >= 10)
+        if(lost_count >= 30)
         {
-            // 连续丢线 >= 300ms → 进入丢线处理
+            // 连续丢线 >= 30×10ms=300ms → 进入丢线处理
             was_lost = 1;                 //标记丢线，恢复循迹时计数
            
 

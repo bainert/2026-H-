@@ -10,7 +10,7 @@ volatile int question = 0;
 volatile uint32_t counter_1_A = 0;
 volatile uint32_t counter_2_A = 0;
 
-//按键消抖计数器：key ISR置2，30ms PID定时器ISR递减，2×30ms=60ms消抖
+//按键消抖计数器：key ISR置30，10ms PID定时器ISR递减，30×10ms=300ms消抖
 volatile uint8_t key_debounce_cnt = 0;
 
 // 第二问：跑圈状态
@@ -33,12 +33,12 @@ void GROUP1_IRQHandler(void)
     //按键消抖处理（不干扰编码器中断）
     if(key_int == key_next_IIDX || key_int == key_enter_IIDX)
     {
-        //消抖窗口内（300ms），跳过所有弹跳边沿
+        //消抖窗口内（30×10ms=300ms），跳过所有弹跳边沿
         if(key_debounce_cnt)
             return;
 
-        //锁定：置2，由30ms PID定时器ISR递减至0
-        key_debounce_cnt = 10;
+        //锁定：置30，由10ms PID定时器ISR递减至0
+        key_debounce_cnt = 30;
 
         if(key_int == key_next_IIDX)
         {
