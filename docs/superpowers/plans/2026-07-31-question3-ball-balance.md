@@ -237,8 +237,6 @@ static float pid_e2 = 0.0f;
 static int32_t target_pulse = 0;
 //上一次下发的脉冲（目标变化才下发，去重）
 static int32_t last_sent_pulse = 0;
-//上一周期题号（检测切题号）
-static int last_question = 0;
 
 extern volatile uint32_t sys_tick_ms;
 
@@ -297,10 +295,8 @@ void ball_proc(void)
         pid_e1 = 0.0f;
         pid_e2 = 0.0f;
         ball_running = 0;
-        last_question = question;
         return;
     }
-    last_question = question;
 
     //丢帧检测：超过500ms无新帧
     if(sys_tick_ms - last_frame_ms > BALL_FRAME_TIMEOUT_MS)
