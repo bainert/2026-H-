@@ -62,6 +62,9 @@ extern volatile uint8_t ball_position_mm;
 extern volatile uint8_t ball_frame_lost;
 extern volatile uint8_t ball_running;
 
+// Q3 摆球运动阶段（0-待命 1-去+5cm 2-去-5cm 3-保持）
+extern volatile uint8_t ball_phase;
+
 // 第二问: 跑圈状态
 extern volatile lap_state_t lap_state;
 extern volatile uint32_t lap_start_ms;
@@ -131,6 +134,15 @@ void oled_proc(void)
             OLED_ShowString(36, 36, (u8 *)"RUN ", 12);
         else
             OLED_ShowString(36, 36, (u8 *)"STOP", 12);
+        //阶段字符：C-待命中心 +-去+5cm --去-5cm H-保持
+        //（x=60：紧接 "RUN "/"STOP" 之后，12 号字体每字符 6px，RUN 占用 36~60）
+        switch(ball_phase)
+        {
+        case 1: OLED_ShowString(60, 36, (u8 *)"+", 12); break;
+        case 2: OLED_ShowString(60, 36, (u8 *)"-", 12); break;
+        case 3: OLED_ShowString(60, 36, (u8 *)"H", 12); break;
+        default: OLED_ShowString(60, 36, (u8 *)"C", 12); break;
+        }
     }
     else
     {
