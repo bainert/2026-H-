@@ -21,12 +21,13 @@ void huidu_get_value()
 }
 extern volatile float target_speed_1;
 extern volatile float target_speed_2;
-static float q4_base_speed_cmd = 0.0f;
 static float q4_error_filtered = 0.0f;
-static float q4_target_speed_1_cmd = 0.0f;
-static float q4_target_speed_2_cmd = 0.0f;
-// Q4 直线匀速测试目标速度，单位 mm/s
-#define Q4_STRAIGHT_TEST_SPEED  300.0f
+// Q4 的循迹参数全部独立配置，调试 Q4 时不会改变 Q2 已调好的参数。
+#define Q4_BASE_SPEED             300.0f  // 两轮平均目标速度，单位 mm/s
+#define Q4_ERROR_FILTER_ALPHA       0.35f // 灰度误差低通系数，增大后弯道响应更快
+#define Q4_ERROR_DEAD_ZONE          0.25f // 直线附近的小误差死区
+#define Q4_LINE_KP                 50.0f  // Q4 专用循迹比例系数
+#define Q4_CORRECTION_MAX         100.0f  // Q4 单轮最大差速修正，单位 mm/s
 
 // 比例控制参数
 static float huidu_base_speed = 350.0f;  // 可调基准速度 mm/s
@@ -90,81 +91,43 @@ void adjust_motor()
         error = 0.0f;
     }
 
-    // Q4 需要边行驶边稳球，降低基础速度可以明显减小车体纵向加速度对摆杆的冲击。
-    // AB 段 1.5m 以 260mm/s 行驶约 5.8s，仍满足 8s 限时；其他题目保持原速度。
-    // Q4 提高巡航速度保证 AB 段时间，同时用斜坡限制起步加速度。
-    // 每个 10ms 周期最多增加 10mm/s，约 0.32s 到达 320mm/s。
-    // Q4 直线匀速测试：关闭差速循迹和速度斜坡，先单独验证摆球闭环。
+    // Q4 匀速循迹：两轮只做等量反向差速，平均目标速度始终保持 300mm/s。
+    // Q4 使用独立的滤波、死区、比例系数和修正限幅，不影响 Q2 的循迹参数。
     if(question == 4)
     {
-        target_speed_1 = Q4_STRAIGHT_TEST_SPEED;
-        target_speed_2 = Q4_STRAIGHT_TEST_SPEED;
+        float q4_correction;
+        float q4_error_cmd;
+
+        // 停车后再次发车时，清除上一次留下的循迹偏差。
+        if(target_speed_1 == 0.0f && target_speed_2 == 0.0f)
+            q4_error_filtered = 0.0f;
+
+        q4_error_filtered += Q4_ERROR_FILTER_ALPHA * (error - q4_error_filtered);
+        q4_error_cmd = q4_error_filtered;
+        if(q4_error_cmd > -Q4_ERROR_DEAD_ZONE &&
+           q4_error_cmd < Q4_ERROR_DEAD_ZONE)
+            q4_error_cmd = 0.0f;
+
+        q4_correction = Q4_LINE_KP * q4_error_cmd;
+        if(q4_correction > Q4_CORRECTION_MAX)
+            q4_correction = Q4_CORRECTION_MAX;
+        if(q4_correction < -Q4_CORRECTION_MAX)
+            q4_correction = -Q4_CORRECTION_MAX;
+
+        target_speed_1 = Q4_BASE_SPEED + q4_correction;
+        target_speed_2 = Q4_BASE_SPEED - q4_correction;
         return;
     }
 
-    if(question != 4 || (target_speed_1 == 0.0f && target_speed_2 == 0.0f))
-    {
-        q4_base_speed_cmd = 0.0f;
-        q4_error_filtered = 0.0f;
-        q4_target_speed_1_cmd = 0.0f;
-        q4_target_speed_2_cmd = 0.0f;
-    }
-    if(question == 4)
-    {
-        // 直线起步采用 2.5mm/s 每周期的慢斜坡，约 1.2s 达到 300mm/s。
-        if(q4_base_speed_cmd < 300.0f)
-        {
-            q4_base_speed_cmd += 2.5f;
-            if(q4_base_speed_cmd > 300.0f) q4_base_speed_cmd = 300.0f;
-        }
-    }
+    q4_error_filtered = 0.0f;
 
-    float base_speed = (question == 4) ? q4_base_speed_cmd : huidu_base_speed;
-    if(question == 4)
-    {
-        q4_error_filtered += 0.25f * (error - q4_error_filtered);
-        error = q4_error_filtered;
-        if(error > -0.35f && error < 0.35f)
-            error = 0.0f;
-    }
-    // Q4 进入弯道时降低基础速度，减小横向修正和车体加速度对摆球的冲击。
-    if(question == 4)
-    {
-        float turn_abs = (error >= 0.0f) ? error : -error;
-        if(turn_abs > 1.0f)
-            base_speed -= 100.0f;
-        else if(turn_abs > 0.5f)
-            base_speed -= 60.0f;
-        if(base_speed < 200.0f) base_speed = 200.0f;
-    }
-    float line_kp = (question == 4) ? 20.0f : huidu_Kp;
-    float correction = line_kp * error;
-    float correction_limit = (question == 4) ? 40.0f : 80.0f;
-    if(correction > correction_limit) correction = correction_limit;
-    if(correction < -correction_limit) correction = -correction_limit;
+    // 其他题目保持原来的循迹参数。
+    float correction = huidu_Kp * error;
+    if(correction > 80.0f) correction = 80.0f;
+    if(correction < -80.0f) correction = -80.0f;
 
-    // 比例控制: 左轮减速 = 右轮加速
-    target_speed_1 = base_speed + huidu_Kp * error;   // motor 1 = 左轮
-    target_speed_2 = base_speed - huidu_Kp * error;   // motor 2 = 右轮
-
-    // 钳位到有效范围
-    target_speed_1 = base_speed + correction;
-    target_speed_2 = base_speed - correction;
-
-    if(question == 4)
-    {
-        // 限制左右轮目标速度的单周期变化，避免循迹量化跳变造成忽快忽慢。
-        float delta_1 = target_speed_1 - q4_target_speed_1_cmd;
-        float delta_2 = target_speed_2 - q4_target_speed_2_cmd;
-        if(delta_1 > 5.0f) delta_1 = 5.0f;
-        if(delta_1 < -5.0f) delta_1 = -5.0f;
-        if(delta_2 > 5.0f) delta_2 = 5.0f;
-        if(delta_2 < -5.0f) delta_2 = -5.0f;
-        q4_target_speed_1_cmd += delta_1;
-        q4_target_speed_2_cmd += delta_2;
-        target_speed_1 = q4_target_speed_1_cmd;
-        target_speed_2 = q4_target_speed_2_cmd;
-    }
+    target_speed_1 = huidu_base_speed + correction;   // motor 1 = 左轮
+    target_speed_2 = huidu_base_speed - correction;   // motor 2 = 右轮
 
     if(target_speed_1 < 0.0f) target_speed_1 = 0.0f;
     if(target_speed_2 < 0.0f) target_speed_2 = 0.0f;

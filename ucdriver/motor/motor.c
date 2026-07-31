@@ -211,8 +211,8 @@ void motor_pid_INST_IRQHandler(void)
                     }
                     else if(lap_state == LAP_RUNNING)
                     {
-                        /* 里程计到达6.50m时停车 */
-                        if(odometer >= 6500.0f)
+                        /* 里程计到达6.240m时停车 */
+                        if(odometer >= 6240.0f)
                         {
                             lap_state = LAP_COMPLETE;
                             lap_total_ms = sys_tick_ms - lap_start_ms;

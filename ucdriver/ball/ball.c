@@ -378,7 +378,7 @@ void ball_proc(void)
             if(ball_phase == 1)
                 control_kp = 1.80f;
             else if(ball_phase == 2)
-                control_kp = 0.65f;
+                control_kp = 0.85f;
         }
 
         int32_t desired_pulse = (int32_t)(control_kp * e
