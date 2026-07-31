@@ -72,7 +72,7 @@ stepper_state_t stepper_get_state(void);
 ### 5.1 视觉帧解析（UART0 ISR 改为状态机）
 
 - 状态机：期望 `0xaa → data → 0x55`；首个字节非 0xaa 丢弃并重新等待。
-- 校验：`data ≤ 250`，非法帧丢弃。
+- 不校验 data 取值范围，原样接收。
 - 成功：更新 `ball_position_mm`（volatile，0~250mm）、`frame_cnt++`、`last_frame_ms = sys_tick_ms`。
 
 ### 5.2 丢帧检测
