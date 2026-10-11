@@ -6,3 +6,8 @@ Debug/
 *.map
 *.hex
 *.bin
+
+# WorkBuddy 内部/工具数据，不进仓库
+.superpowers/
+.workbuddy/
+docs/superpowers/

@@ -1,9 +1,0 @@
-﻿Task 1: complete (commits 253dea1..403fd19, review clean)
-Minor findings: [T1] stepper_ack=0 无应答语义未注释; [T1] INT32_MIN 溢出不可达; [T1-Important#2] UART3 ISR 阻塞接收低概率挂死（与现有风格一致）; [T1-Important#1] 构建注册在 Task 4 范围
-Task 2: complete (commits 403fd19..ae429fa, review clean)
-Minor findings: [T2] 丢帧恢复 Kd 瞬态跳变（建议恢复时重置 e1=e2=e）; [T2] 上电首帧前误判丢帧（last_frame_ms=0）; [T2] 非Q3不清 ball_frame_lost; [T2] 帧协议无校验和（规格允许）
-Task 3: complete (commits ae429fa..c4b6f29, review clean)
-Minor findings: [T3] OLED 第3行 mm/m 切换残留鬼影; [T3] 第4行 Q2/Q3 切换残留; [T3] AGENTS.md motor_pid 10ms/30ms 描述不符（文档）
-Task 4: complete (commits c4b6f29..b12c7f2, review clean; 463804c 撤销 Debug/ 追踪)
-Task 5: 用户自行 CCS 编译/调试/标定（用户取消 agent 验证）
-最终审查：用户取消，Minor 清单见上，未修复
