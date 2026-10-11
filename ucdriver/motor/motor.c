@@ -34,6 +34,8 @@ volatile float target_speed_2 = 0.0f; //单位：mm/s
 
 //里程计（累计行驶距离，单位 mm）
 volatile float odometer = 0.0f;
+// Q4/Q5 发车沿检测：用于每次重新测试时将全圈分段里程清零。
+static uint8_t q4_run_active = 0;
 
 //上一次误差，当前误差
 float last_error_1 = 0.0f;
@@ -146,7 +148,8 @@ void motor_PID(uint8_t motor_id)
         //计算当前误差
         current_error_1 = target_speed_1 - speed_1;
         //计算pid输出
-        PWM_1_duty += (int)(motor_Kp * (current_error_1 - last_error_1) + motor_Ki * current_error_1);
+        PWM_1_duty += (int)(motor_Kp * (current_error_1 - last_error_1)
+                          + motor_Ki * current_error_1);
         //钳位占空比到0-4000
         if(PWM_1_duty > 4000) PWM_1_duty = 4000;
         if(PWM_1_duty < 0) PWM_1_duty = 0;
@@ -158,7 +161,8 @@ void motor_PID(uint8_t motor_id)
     if(motor_id == 2)
     {
         current_error_2 = target_speed_2 - speed_2;
-        PWM_2_duty += (int)(motor_Kp * (current_error_2 - last_error_2) + motor_Ki * current_error_2);
+        PWM_2_duty += (int)(motor_Kp * (current_error_2 - last_error_2)
+                          + motor_Ki * current_error_2);
         if(PWM_2_duty > 4000) PWM_2_duty = 4000;
         if(PWM_2_duty < 0) PWM_2_duty = 0;
         motor_set_duty(2, (uint32_t)PWM_2_duty);
@@ -174,12 +178,23 @@ void motor_pid_INST_IRQHandler(void)
    switch(DL_Timer_getPendingInterrupt(motor_pid_INST))
    {
     case DL_TIMER_IIDX_LOAD:
+        // Q4/Q5 只在发车沿清零一次里程，确保全圈分段位置在重复测试时一致。
+        if(enter == 1 && (question == 4 || question == 5) && q4_run_active == 0)
+        {
+            odometer = 0.0f;
+            q4_run_active = 1;
+        }
+        else if(enter == 0 || (question != 4 && question != 5))
+        {
+            q4_run_active = 0;
+        }
+
         //发车
         if(enter == 1)
         {
-            if(question == 3 || question == 5)
+            if(question == 3)
             {
-                //Q3 静态摆球 / Q5 测试：小车电机停，不循迹，交给摆球控制
+                //Q3 静态摆球：小车电机停止，只运行摆球控制。
                 motor_set_duty(1, 0);
                 motor_set_duty(2, 0);
                 target_speed_1 = 0.0f;
@@ -211,8 +226,8 @@ void motor_pid_INST_IRQHandler(void)
                     }
                     else if(lap_state == LAP_RUNNING)
                     {
-                        /* 里程计到达6.240m时停车 */
-                        if(odometer >= 6240.0f)
+                        /* 里程计到达6.350m时停车 */
+                        if(odometer >= 6350.0f)
                         {
                             lap_state = LAP_COMPLETE;
                             lap_total_ms = sys_tick_ms - lap_start_ms;
@@ -234,6 +249,19 @@ void motor_pid_INST_IRQHandler(void)
             motor_set_duty(2, 0);
             target_speed_1 = 0.0f;
             target_speed_2 = 0.0f;
+
+            // Q4/Q5 每次停车后清除增量式 PI 的内部输出和误差。
+            // 否则重新发车时即使目标速度从零缓慢增加，也会立即恢复上次的高占空比，
+            // 造成车体突然前冲，小球受惯性冲向车尾。该复位不影响 Q2。
+            if(question == 4 || question == 5)
+            {
+                PWM_1_duty = 0;
+                PWM_2_duty = 0;
+                current_error_1 = 0.0f;
+                current_error_2 = 0.0f;
+                last_error_1 = 0.0f;
+                last_error_2 = 0.0f;
+            }
         }
 
         //摆球控制 10ms 周期调用（Q3 时生效，非 Q3 自动待命）

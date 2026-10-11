@@ -1,4 +1,5 @@
 #include "key.h"
+#include "ball.h"
 #include "ti_msp_dl_config.h"
 
 //是否发车 0-未发车 1-发车
@@ -44,10 +45,34 @@ void GROUP1_IRQHandler(void)
         {
             question += 1;
             if(question > 5) question = 1;
+
+            //进入第五题时强制保持停车，并等待本轮新的指定位置。
+            if(question == 5)
+            {
+                enter = 0;
+                ball_q5_reset_target();
+            }
         }
         else if(key_int == key_enter_IIDX)
         {
-            enter = !enter;
+            if(question == 5)
+            {
+                if(enter)
+                {
+                    //手动停车后清除旧目标，防止下一次误用上一次的位置发车。
+                    enter = 0;
+                    ball_q5_reset_target();
+                }
+                else if(ball_target_received)
+                {
+                    //第五题只有收到 0xBB data 0x55 完整目标帧后才允许发车。
+                    enter = 1;
+                }
+            }
+            else
+            {
+                enter = !enter;
+            }
         }
     }
     else if(key_int == dc_motor_BA_IIDX)

@@ -3,6 +3,7 @@
 #include "stepper.h"
 #include "key.h"
 #include "delay.h"
+#include "motor.h"
 
 //目标点（mm）：中心O / ±5cm（视觉坐标系 0~250，中心 125）
 #define BALL_TARGET_CENTER_MM  125.0f
@@ -42,6 +43,18 @@
 #define BALL_INTEGRAL_MAX   300.0f
 // 仅在接近目标点时启用积分，避免运动阶段积分累积造成连续过冲
 #define BALL_INTEGRAL_ENABLE_ERR_MM  30.0f
+// Q4 全圈分段里程，按赛道中心线尺寸：AB=1.5m，半圆弧=1.57m。
+// AB 段继续使用已经通过测试的原参数，只有到达 B 点后才启用全圈补偿。
+#define BALL_Q4_B_DISTANCE_MM        1500.0f
+#define BALL_Q4_C_DISTANCE_MM        3070.0f
+#define BALL_Q4_D_DISTANCE_MM        4570.0f
+#define BALL_Q4_LAP_DISTANCE_MM      6140.0f
+// 顺时针入弯时小球实测向车头正方向偏移，因此叠加负向摆杆前馈。
+#define BALL_Q4_CURVE_FEEDFORWARD_PULSE  (-24)
+// 出弯前提前撤掉前馈，避免到达 C/D 直线时仍把小球推向负方向。
+#define BALL_Q4_CURVE_EXIT_FADE_MM    600.0f
+// DA 使用独立撤除距离，在正向偏差与双向过冲之间折中。
+#define BALL_Q4_DA_EXIT_FADE_MM       400.0f
 
 // 不同题目的摆球动态不同：Q4 行驶时车体扰动更大，需要更强阻尼。
 typedef struct
@@ -53,19 +66,78 @@ typedef struct
 } ball_pid_param_t;
 
 static const ball_pid_param_t ball_pid_q3 = {0.95f, 0.025f, 26.0f, 60.0f};
-// Q4 行驶时车体扰动较大：减小积分避免累积过冲，增大阻尼并限制微分峰值。
+// Q4 的 AB 段正确参数已经通过实测，后续全圈调试禁止修改这一组。
 static const ball_pid_param_t ball_pid_q4 = {0.80f, 0.015f, 44.0f, 52.0f};
-static const ball_pid_param_t ball_pid_q5 = {0.95f, 0.015f, 28.0f, 60.0f};
+// Q4 到达 B 点后的全圈参数：增强回中力度和阻尼，减小出弯后的残余偏差。
+static const ball_pid_param_t ball_pid_q4_lap = {1.15f, 0.020f, 52.0f, 60.0f};
+// Q4 出弯前 600mm 专用参数：前馈逐渐撤除时增强双向位置纠偏。
+static const ball_pid_param_t ball_pid_q4_curve_exit = {1.35f, 0.025f, 58.0f, 64.0f};
+// Q4 的 CD 直线专用参数：进一步减小平稳直线阶段约 2cm 的残余误差。
+static const ball_pid_param_t ball_pid_q4_cd = {1.50f, 0.032f, 62.0f, 66.0f};
+// Q4 的 DA 出弯专用参数：抵消 DA 段较大的正向残余偏差。
+static const ball_pid_param_t ball_pid_q4_da_exit = {1.40f, 0.025f, 60.0f, 64.0f};
 
 static const ball_pid_param_t *ball_get_pid_param(void)
 {
     switch(question)
     {
     case 3: return &ball_pid_q3;
-    case 4: return &ball_pid_q4;
-    case 5: return &ball_pid_q5;
-    default: return &ball_pid_q5;
+    case 4:
+    case 5:
+        if(odometer >= BALL_Q4_C_DISTANCE_MM &&
+           odometer < BALL_Q4_D_DISTANCE_MM)
+            return &ball_pid_q4_cd;
+        if(odometer >= BALL_Q4_LAP_DISTANCE_MM -
+                         BALL_Q4_DA_EXIT_FADE_MM &&
+           odometer < BALL_Q4_LAP_DISTANCE_MM)
+            return &ball_pid_q4_da_exit;
+        if((odometer >= BALL_Q4_C_DISTANCE_MM -
+                         BALL_Q4_CURVE_EXIT_FADE_MM &&
+            odometer < BALL_Q4_C_DISTANCE_MM) ||
+           (odometer >= BALL_Q4_LAP_DISTANCE_MM -
+                         BALL_Q4_CURVE_EXIT_FADE_MM &&
+            odometer < BALL_Q4_LAP_DISTANCE_MM))
+            return &ball_pid_q4_curve_exit;
+        if(odometer >= BALL_Q4_B_DISTANCE_MM)
+            return &ball_pid_q4_lap;
+        return &ball_pid_q4;
+    default: return &ball_pid_q4;
     }
+}
+
+// 计算 Q4/Q5 带球行驶弯道前馈。BC 最后 600mm、DA 最后 400mm
+// 按剩余里程线性衰减到 0，分别匹配两个弯道的出弯偏差。
+static int32_t ball_drive_curve_feedforward(void)
+{
+    float curve_end_mm;
+    float fade_mm;
+    float fade_start_mm;
+    float fade_ratio;
+
+    if(question != 4 && question != 5)
+        return 0;
+
+    if(odometer >= BALL_Q4_B_DISTANCE_MM &&
+       odometer < BALL_Q4_C_DISTANCE_MM)
+    {
+        curve_end_mm = BALL_Q4_C_DISTANCE_MM;
+        fade_mm = BALL_Q4_CURVE_EXIT_FADE_MM;
+    }
+    else if(odometer >= BALL_Q4_D_DISTANCE_MM &&
+            odometer < BALL_Q4_LAP_DISTANCE_MM)
+    {
+        curve_end_mm = BALL_Q4_LAP_DISTANCE_MM;
+        fade_mm = BALL_Q4_DA_EXIT_FADE_MM;
+    }
+    else
+        return 0;
+
+    fade_start_mm = curve_end_mm - fade_mm;
+    if(odometer <= fade_start_mm)
+        return BALL_Q4_CURVE_FEEDFORWARD_PULSE;
+
+    fade_ratio = (curve_end_mm - odometer) / fade_mm;
+    return (int32_t)((float)BALL_Q4_CURVE_FEEDFORWARD_PULSE * fade_ratio);
 }
 //调参指引：回中慢 → 加大 KP（注意过冲，配 KD 压制）；稳态振铃 → 减小 KP/加大 KD
 //过冲不回弹 → KD 太小或 KP 太大；到不了位（静差）→ 加大 KI
@@ -76,8 +148,12 @@ volatile uint8_t ball_position_mm = 0;
 volatile uint8_t ball_frame_lost = 0;
 //运行标志
 volatile uint8_t ball_running = 0;
-//摆球运动阶段：0-待命(中心) 1-前往+5cm 2-折返-5cm 3-完成保持（仅Q3使用，Q4/Q5恒为中心）
+//摆球运动阶段：0-待命/中心 1-前往+5cm 2-折返-5cm 3-保持（Q5指定位置）
 volatile uint8_t ball_phase = 0;
+//第五题指定位置与接收状态。目标帧和位置帧使用同一视觉坐标系。
+volatile uint8_t ball_target_position_mm = (uint8_t)BALL_TARGET_CENTER_MM;
+volatile uint8_t ball_target_received = 0;
+volatile uint8_t ball_target_update_seq = 0;
 //当前目标点（mm，由状态机更新，替代原固定 BALL_CENTER_MM）
 static float ball_target_mm = BALL_TARGET_CENTER_MM;
 // PID 实际使用的目标。ball_target_mm 保存最终目标，折返阶段由本变量平滑追踪。
@@ -87,8 +163,9 @@ static uint8_t arrive_cnt = 0;
 //目标切换防冲击标志：置位后 PID 第一拍微分项清零
 static uint8_t target_changed = 0;
 
-//帧解析状态机：0-等帧头 1-已收data 2-等帧尾
+//帧解析状态机：0-等帧头 1-等data 2-等帧尾
 static uint8_t frame_state = 0;
+static uint8_t frame_head = 0;
 static uint8_t frame_data = 0;
 
 //最近一帧时间戳（sys_tick_ms）
@@ -115,7 +192,7 @@ static int32_t ball_slew_pulse(int32_t current, int32_t desired)
 {
     int32_t slew_max;
 
-    if(question == 4)
+    if(question == 4 || question == 5)
         slew_max = BALL_PULSE_SLEW_MAX_Q4;
     else if(question == 3 && ball_phase == 2)
         slew_max = BALL_PULSE_SLEW_MAX_Q3_REVERSE;
@@ -129,17 +206,34 @@ static int32_t ball_slew_pulse(int32_t current, int32_t desired)
     return desired;
 }
 
-//视觉帧解析：0xAA data 0x55 三字节帧
+//将视觉坐标转换为小车控制坐标。位置帧和目标帧必须使用同一坐标方向。
+static uint8_t ball_convert_vision_position(uint8_t position_mm)
+{
+    if(position_mm > BALL_POSITION_MAX_MM)
+        position_mm = BALL_POSITION_MAX_MM;
+#if BALL_VISION_REVERSE_AXIS
+    position_mm = (uint8_t)BALL_POSITION_MAX_MM - position_mm;
+#endif
+    return position_mm;
+}
+
+//视觉帧解析：
+//  0xAA position 0x55：钢球实时位置
+//  0xBB target   0x55：第五题指定位置
 void ball_uart_rx(uint8_t byte)
 {
     if(frame_state == 0)
     {
-        //等帧头
-        if(byte == 0xAA) frame_state = 1;
+        //等待两类帧头，其他字节直接丢弃。
+        if(byte == 0xAA || byte == 0xBB)
+        {
+            frame_head = byte;
+            frame_state = 1;
+        }
     }
     else if(frame_state == 1)
     {
-        //收 data
+        //帧头后的任意一个字节都是 data，包含 0xAA、0xBB、0x55。
         frame_data = byte;
         frame_state = 2;
     }
@@ -147,21 +241,32 @@ void ball_uart_rx(uint8_t byte)
     {
         if(byte == 0x55)
         {
-            //完整帧：更新小球位置与时间戳
-            uint8_t position_mm = frame_data;
-
-            if(position_mm > BALL_POSITION_MAX_MM)
-                position_mm = BALL_POSITION_MAX_MM;
-#if BALL_VISION_REVERSE_AXIS
-            position_mm = (uint8_t)BALL_POSITION_MAX_MM - position_mm;
-#endif
-            ball_position_mm = position_mm;
-            last_frame_ms = sys_tick_ms;
-            ball_frame_lost = 0;
+            if(frame_head == 0xAA)
+            {
+                //完整位置帧：更新实时位置与丢帧时间戳。
+                ball_position_mm = ball_convert_vision_position(frame_data);
+                last_frame_ms = sys_tick_ms;
+                ball_frame_lost = 0;
+            }
+            else if(question == 5 && enter == 0 &&
+                    frame_data <= BALL_POSITION_MAX_MM)
+            {
+                //目标只允许在第五题停车阶段写入，发车后锁定，防止运行中被误改。
+                uint8_t target_mm = ball_convert_vision_position(frame_data);
+                if(ball_target_received == 0 ||
+                   target_mm != ball_target_position_mm)
+                {
+                    ball_target_position_mm = target_mm;
+                    ball_target_received = 1;
+                    ball_target_update_seq++;
+                }
+            }
+            frame_state = 0;
         }
-        else if(byte == 0xAA)
+        else if(byte == 0xAA || byte == 0xBB)
         {
-            //可能丢失 data 字节，按新帧头重新解析
+            //帧尾错误但当前字节恰好是新帧头，立即从新帧重新同步。
+            frame_head = byte;
             frame_state = 1;
         }
         else
@@ -169,6 +274,12 @@ void ball_uart_rx(uint8_t byte)
             frame_state = 0;
         }
     }
+}
+
+void ball_q5_reset_target(void)
+{
+    ball_target_position_mm = (uint8_t)BALL_TARGET_CENTER_MM;
+    ball_target_received = 0;
 }
 
 //初始化：使能 UART3 + 触发回零 + 阻塞延时1s等待回零完成
@@ -214,15 +325,27 @@ void ball_proc(void)
 
     if(enter == 1 && ball_frame_lost == 0)
     {
-        if(question == 4 || question == 5)
+        if(question == 4)
         {
-            //Q4 带球行驶 / Q5 测试：目标恒为中心 O（125mm），闭环一直把球拉回中心。
-            //Q5 时车体由 motor.c 停止，仅测试摆球在 O 点的稳定性。
+            //Q4 带球行驶：目标恒为中心 O（125mm）。
             if(ball_target_mm != BALL_TARGET_CENTER_MM || ball_phase != 0)
             {
                 ball_target_mm = BALL_TARGET_CENTER_MM;
                 ball_control_target_mm = BALL_TARGET_CENTER_MM;
                 ball_phase = 0;
+                arrive_cnt = 0;
+                target_changed = 1;
+            }
+        }
+        else if(question == 5)
+        {
+            //Q5 带球全圈：以发车前收到的指定位置为目标，全程保持该位置。
+            float q5_target_mm = (float)ball_target_position_mm;
+            if(ball_target_mm != q5_target_mm || ball_phase != 3)
+            {
+                ball_target_mm = q5_target_mm;
+                ball_control_target_mm = q5_target_mm;
+                ball_phase = 3;
                 arrive_cnt = 0;
                 target_changed = 1;
             }
@@ -384,6 +507,10 @@ void ball_proc(void)
         int32_t desired_pulse = (int32_t)(control_kp * e
                                         + pid->ki * ball_integral
                                         + pid_d_term);
+
+        // Q4/Q5 弯道前馈只在 B 点之后的两个半圆弯道生效，并在出弯前平滑撤除。
+        // 位置 PID 仍以中心 O 为目标，前馈只抵消弯道扰动，不改变目标位置。
+        desired_pulse += ball_drive_curve_feedforward();
 
         // 接近 Q3 端点时补偿静摩擦，避免小球停在 3~4cm 后无法继续靠近目标。
         // 只在误差方向与目标一致时补偿，进入目标附近或反向时不会继续加力。

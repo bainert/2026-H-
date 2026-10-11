@@ -228,6 +228,11 @@ void OLED_ShowNum(u8 x,u8 y,u32 num,u8 len,u8 size1)
 //显示浮点数(支持负数, 前导0填充, 四舍五入)
 void OLED_ShowFloat(u8 x,u8 y,float num,u8 intLen,u8 decLen,u8 size1)
 {
+    u32 scale=OLED_Pow(10,decLen);
+    u32 scaledNum;
+    u32 intPart;
+    u32 decPart;
+
     if(num<0)
     {
         OLED_ShowChar(x,y,'-',size1);
@@ -235,15 +240,17 @@ void OLED_ShowFloat(u8 x,u8 y,float num,u8 intLen,u8 decLen,u8 size1)
         x+=size1/2;
     }
 
-    u32 intPart=(u32)num;
+    //先对完整数值统一四舍五入，再拆分整数和小数，保证 1.995 正确显示为 2.00
+    scaledNum=(u32)(num*(float)scale+0.5f);
+    intPart=scaledNum/scale;
+    decPart=scaledNum%scale;
+
     OLED_ShowNum(x,y,intPart,intLen,size1);
     x+=(size1/2)*intLen;
 
     OLED_ShowChar(x,y,'.',size1);
     x+=size1/2;
 
-    float fracPart=num-intPart;
-    u32 decPart=(u32)(fracPart*OLED_Pow(10,decLen)+0.5f);
     OLED_ShowNum(x,y,decPart,decLen,size1);
 }
 
